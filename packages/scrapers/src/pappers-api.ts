@@ -1,7 +1,6 @@
 /**
- * Pappers API Client
- * 
- * API docs: https://www.pappers.fr/api/documentation
+ * Pappers API Client - CORRECT implementation
+ * Documentation: https://www.pappers.fr/api/documentation
  */
 
 export interface ScrapedCompany {
@@ -24,10 +23,8 @@ interface ScrapeOptions {
   days?: number;
   limit?: number;
   department?: string;
-  city?: string;
 }
 
-// B2C sectors
 const B2C_NAF_CODES = ['47', '56', '96', '41', '43', '46', '10', '14', '15', '16', '31', '32', '33', '52', '55', '68', '77', '82', '90', '93', '95'];
 const PDL_PREFIXES = ['44', '49', '53', '72', '85'];
 
@@ -40,54 +37,61 @@ export class PappersAPIClient {
   }
 
   async searchCompanies(options: ScrapeOptions = {}): Promise<ScrapedCompany[]> {
-    const { days = 30, limit = 50, department, city } = options;
+    const { days = 30, limit = 50, department } = options;
     const companies: ScrapedCompany[] = [];
     
     try {
-      // Build search params
+      // Strategy: Search by department prefix with date filter
+      // Pappers API requires at least one search parameter
+      
+      // Build search params - using code_postal as primary filter
       const params = new URLSearchParams({
         api_token: this.apiKey,
-        par_page: '100',
+        par_page: Math.min(limit, 100).toString(),
       });
 
-      // Date range
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-      params.set('date_creation_min', startDate.toISOString().split('T')[0]);
-      params.set('date_creation_max', new Date().toISOString().split('T')[0]);
-
-      // Location filters
+      // Add department filter if provided (e.g., "44*" for Loire-Atlantique)
       if (department) {
         params.set('code_postal', `${department}*`);
-      }
-      if (city) {
-        params.set('ville', city);
+      } else {
+        // Search all with a wildcard that matches everything
+        // Use a common search pattern that returns recent companies
+        params.set('code_postal', '*');
       }
 
-      // Try /recherche endpoint
-      const searchUrl = `${this.baseUrl}/recherche?${params.toString()}`;
-      console.log(`📡 Calling: ${searchUrl.replace(this.apiKey, '***')}`);
+      // Date range - format: YYYY-MM-DD
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      
+      params.set('date_creation_min', startDate.toISOString().split('T')[0]);
+      params.set('date_creation_max', endDate.toISOString().split('T')[0]);
 
-      const response = await fetch(searchUrl);
+      const url = `${this.baseUrl}/recherche?${params.toString()}`;
+      console.log(`📡 Calling Pappers API...`);
+      console.log(`   URL: ${url.replace(this.apiKey, '***')}`);
+
+      const response = await fetch(url);
       
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`API ${response.status}: ${text}`);
+        const errorText = await response.text();
+        console.error(`❌ API Error ${response.status}:`, errorText);
+        throw new Error(`Pappers API ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
       
-      // Handle different response formats
-      const results = data.entreprises || data.resultats || data.results || [];
-      console.log(`📊 API returned ${results.length} results`);
+      // Handle response format
+      const results = data.resultats || data.entreprises || data.results || [];
+      console.log(`📊 Found ${results.length} companies`);
 
-      for (const company of results.slice(0, limit)) {
-        const processed = await this.processCompany(company);
+      for (const result of results.slice(0, limit)) {
+        const processed = await this.processCompany(result);
         if (processed) companies.push(processed);
       }
 
     } catch (error) {
-      console.error('❌ API Error:', error.message);
+      console.error('❌ Error:', error.message);
       throw error;
     }
 
@@ -95,34 +99,33 @@ export class PappersAPIClient {
   }
 
   private async processCompany(data: any): Promise<ScrapedCompany | null> {
-    const siege = data.siege || data.etablissement || {};
-    if (!siege.ville && !data.ville) return null;
-
-    const websiteUrl = data.site_web || data.website || undefined;
+    const siege = data.siege || data;
+    const company = data;
+    
+    const websiteUrl = company.site_web || undefined;
     const hasWebsite = websiteUrl ? await this.checkWebsite(websiteUrl) : false;
     
-    const createdAt = new Date(data.date_creation || data.dateCreation || Date.now());
-    const postalCode = siege.code_postal || data.code_postal || '';
-    const city = siege.ville || data.ville || '';
-
-    const company: ScrapedCompany = {
+    const createdAtStr = company.date_creation || company.date_immatriculation;
+    const createdAt = createdAtStr ? new Date(createdAtStr) : new Date();
+    
+    const scraped: ScrapedCompany = {
       id: crypto.randomUUID(),
-      name: data.denomination || data.nom_entreprise || data.name || 'Unknown',
-      siren: data.siren || '',
-      city,
-      postalCode,
+      name: company.nom_entreprise || company.denomination || 'Unknown',
+      siren: company.siren || '',
+      city: siege.ville || '',
+      postalCode: siege.code_postal || '',
       createdAt,
       hasWebsite,
       websiteUrl: hasWebsite ? websiteUrl : undefined,
-      nafCode: data.code_naf || data.codeNaf || '',
-      nafLabel: data.libelle_code_naf || data.activite || '',
-      email: data.email || undefined,
-      phone: data.telephone || data.phone || undefined,
+      nafCode: company.code_naf || '',
+      nafLabel: company.libelle_code_naf || this.getNafLabel(company.code_naf),
+      email: company.email || undefined,
+      phone: company.telephone || undefined,
       score: 0,
     };
 
-    company.score = this.calculateScore(company);
-    return company;
+    scraped.score = this.calculateScore(scraped);
+    return scraped;
   }
 
   private async checkWebsite(url: string): Promise<boolean> {
@@ -131,16 +134,28 @@ export class PappersAPIClient {
     
     try {
       const controller = new AbortController();
-      setTimeout(() => controller.abort(), 8000);
+      setTimeout(() => controller.abort(), 5000);
       const res = await fetch(fullUrl, { 
         method: 'HEAD', 
-        signal: controller.signal,
-        redirect: 'follow'
+        signal: controller.signal 
       });
       return res.ok;
     } catch {
       return false;
     }
+  }
+
+  private getNafLabel(code?: string): string {
+    if (!code) return '';
+    const prefix = code.substring(0, 2);
+    const labels: Record<string, string> = {
+      '47': 'Commerce de détail',
+      '56': 'Restauration',
+      '96': 'Services personnels',
+      '41': 'Construction',
+      '43': 'Travaux de construction',
+    };
+    return labels[prefix] || 'Autre';
   }
 
   private calculateScore(c: ScrapedCompany): number {
