@@ -44,17 +44,14 @@ export class DataGouvClient {
     console.log(`🔍 Searching ${departments.length} department(s)...`);
     
     for (const dept of departments) {
-      if (companies.length >= limit) break;
-      
       try {
-        const remaining = limit - companies.length;
-        const deptCompanies = await this.searchByDepartment(dept, remaining);
+        // Récupère beaucoup plus que nécessaire pour avoir assez de récentes après filtrage
+        const deptCompanies = await this.searchByDepartment(dept, 500);
         companies.push(...deptCompanies);
         
-        console.log(`   📍 Dept ${dept}: ${deptCompanies.length} companies`);
+        console.log(`   📍 Dept ${dept}: ${deptCompanies.length} companies (raw)`);
         
-        // Petit délai entre les requêtes
-        await this.delay(500);
+        await this.delay(300);
       } catch (error) {
         console.error(`   ❌ Dept ${dept} failed:`, error.message);
       }
@@ -74,11 +71,12 @@ export class DataGouvClient {
     const companies: ScrapedCompany[] = [];
     let page = 1;
     const perPage = 25;
+    const maxPages = 20; // Augmenté pour trouver des récentes
     
-    while (companies.length < limit && page <= 4) { // Max 100 résultats par département
+    while (companies.length < limit && page <= maxPages) {
       const params = new URLSearchParams({
         departement: department,
-        etat_administratif: 'A', // Actives seulement
+        etat_administratif: 'A',
         page: page.toString(),
         per_page: perPage.toString(),
       });
