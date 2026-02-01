@@ -1,0 +1,23 @@
+{
+  "name": "opsidius-leads-platform",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "pnpm --filter @opsidius/web dev",
+    "dev:api": "pnpm --filter @opsidius/api dev",
+    "build": "pnpm -r build",
+    "scrape": "tsx packages/scrapers/src/scrape.ts",
+    "db:migrate": "psql $DATABASE_URL -f infra/supabase/migrations/001_init.sql",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "tsx": "^4.7.1",
+    "typescript": "^5.4.3"
+  }
+}

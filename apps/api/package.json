@@ -1,0 +1,19 @@
+{
+  "name": "@opsidius/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nitropack dev",
+    "build": "nitropack build",
+    "preview": "node .output/server/index.mjs"
+  },
+  "dependencies": {
+    "nitropack": "^2.9.5",
+    "@supabase/supabase-js": "^2.39.8",
+    "@opsidius/scrapers": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30"
+  }
+}

@@ -1,0 +1,37 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+dist
+.output
+.nuxt
+.nitro
+.vite
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs
+
+# Testing
+coverage
+.nyc_output
+
+# Output
+output/
+*.csv
