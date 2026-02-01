@@ -3,7 +3,12 @@
  * CLI entry point for Pappers scraper
  */
 
-import { PappersScraper } from './pappers.js';
+import { PappersAPIClient } from './pappers-api.js';
+import { toCSV, saveToFile } from './export.js';
+import * as dotenv from 'dotenv';
+
+// Load .env from project root
+dotenv.config({ path: '../../../.env' });
 
 async function main() {
   const args = process.argv.slice(2);
@@ -11,19 +16,28 @@ async function main() {
   // Parse arguments
   const days = parseInt(args.find((a, i) => args[i - 1] === '--days' || args[i] === '-d')?.replace(/\D/g, '') || '') || 30;
   const limit = parseInt(args.find((a, i) => args[i - 1] === '--limit' || args[i] === '-l')?.replace(/\D/g, '') || '') || 50;
-  const region = args.find((a, i) => args[i - 1] === '--region' || args[i] === '-r') || '';
   const department = args.find((a, i) => args[i - 1] === '--dept') || '';
+  const city = args.find((a, i) => args[i - 1] === '--city') || '';
 
   console.log('╔════════════════════════════════════════╗');
   console.log('║     Opsidius Leads Scraper v1.0        ║');
+  console.log('║         (Pappers API Edition)          ║');
   console.log('╚════════════════════════════════════════╝');
-  console.log(`\n📅 Days: ${days} | 🎯 Limit: ${limit}${region ? ` | 📍 Region: ${region}` : ''}${department ? ` | 📮 Dept: ${department}` : ''}\n`);
+  console.log(`\n📅 Days: ${days} | 🎯 Limit: ${limit}${department ? ` | 📮 Dept: ${department}` : ''}${city ? ` | 🏙️ City: ${city}` : ''}\n`);
 
-  const scraper = new PappersScraper();
+  // Get API key from environment
+  const apiKey = process.env.PAPPERS_API_KEY;
+  if (!apiKey) {
+    console.error('❌ PAPPERS_API_KEY not found in environment');
+    console.error('   Add PAPPERS_API_KEY=your_key to .env file');
+    process.exit(1);
+  }
+
+  const client = new PappersAPIClient(apiKey);
   
   try {
     const startTime = Date.now();
-    const companies = await scraper.scrape({ days, limit, region, department });
+    const companies = await client.searchCompanies({ days, limit, department, city });
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
     console.log(`\n✅ Scraping complete in ${duration}s`);
@@ -45,7 +59,12 @@ async function main() {
         console.log('');
       });
 
-      // Output JSON for piping
+      // Export CSV
+      const csv = toCSV(companies);
+      const filename = `leads-${new Date().toISOString().split('T')[0]}.csv`;
+      saveToFile(csv, filename);
+
+      // Output JSON if requested
       if (args.includes('--json')) {
         console.log('\n--- JSON OUTPUT ---');
         console.log(JSON.stringify(companies, null, 2));
