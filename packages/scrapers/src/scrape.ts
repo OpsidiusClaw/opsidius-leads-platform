@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
  * CLI entry point for Pappers scraper
+ * 
+ * Usage: pnpm scrape -- --days 30 --limit 50 --dept 44
  */
 
 import { PappersAPIClient } from './pappers-api.js';
@@ -9,13 +11,10 @@ import * as dotenv from 'dotenv';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-// Get current file directory
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// Try multiple .env locations
-dotenv.config({ path: resolve(__dirname, '../../../../.env') }); // From packages/scrapers/src/
-dotenv.config({ path: resolve(process.cwd(), '.env') }); // From cwd
-dotenv.config(); // Default
+dotenv.config({ path: resolve(__dirname, '../../../../.env') });
+dotenv.config({ path: resolve(process.cwd(), '.env') });
+dotenv.config();
 
 async function main() {
   const args = process.argv.slice(2);
@@ -23,8 +22,8 @@ async function main() {
   // Parse arguments
   const days = parseInt(args.find((a, i) => args[i - 1] === '--days' || args[i] === '-d')?.replace(/\D/g, '') || '') || 30;
   const limit = parseInt(args.find((a, i) => args[i - 1] === '--limit' || args[i] === '-l')?.replace(/\D/g, '') || '') || 50;
-  const department = args.find((a, i) => args[i - 1] === '--dept') || '';
-  const city = args.find((a, i) => args[i - 1] === '--city') || '';
+  const department = args.find((a, i) => args[i - 1] === '--dept' || args[i] === '--department') || '';
+  const city = args.find((a, i) => args[i - 1] === '--city' || args[i] === '-c') || '';
 
   console.log('╔════════════════════════════════════════╗');
   console.log('║     Opsidius Leads Scraper v1.0        ║');
@@ -32,12 +31,10 @@ async function main() {
   console.log('╚════════════════════════════════════════╝');
   console.log(`\n📅 Days: ${days} | 🎯 Limit: ${limit}${department ? ` | 📮 Dept: ${department}` : ''}${city ? ` | 🏙️ City: ${city}` : ''}\n`);
 
-  // Get API key from environment
   const apiKey = process.env.PAPPERS_API_KEY;
   if (!apiKey) {
-    console.error('❌ PAPPERS_API_KEY not found in environment');
-    console.error('   Add PAPPERS_API_KEY=your_key to .env file in project root');
-    console.error(`   Looking in: ${resolve(process.cwd(), '.env')}`);
+    console.error('❌ PAPPERS_API_KEY not found');
+    console.error('   Add to .env: PAPPERS_API_KEY=your_key');
     process.exit(1);
   }
 
@@ -48,39 +45,29 @@ async function main() {
     const companies = await client.searchCompanies({ days, limit, department, city });
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
-    console.log(`\n✅ Scraping complete in ${duration}s`);
-    console.log(`📊 Total leads found: ${companies.length}`);
-    
-    const noWebsite = companies.filter(c => !c.hasWebsite);
-    console.log(`⭐ Without website: ${noWebsite.length}`);
-    console.log(`💯 Avg score: ${(companies.reduce((a, c) => a + c.score, 0) / companies.length || 0).toFixed(1)}`);
+    console.log(`\n✅ Complete in ${duration}s`);
+    console.log(`📊 Total leads: ${companies.length}`);
+    console.log(`⭐ Without website: ${companies.filter(c => !c.hasWebsite).length}`);
 
-    if (companies.length > 0) {
-      console.log('\n🏆 Top 10 scoring leads:');
+    if (companies.length === 0) {
+      console.log('\n⚠️ No companies found. Try:');
+      console.log('   - Increase --days (e.g., 90, 365)');
+      console.log('   - Remove --dept filter');
+      console.log('   - Check API key has credits');
+    } else {
+      console.log('\n🏆 Top leads:');
       console.log('─'.repeat(80));
       companies.slice(0, 10).forEach((c, i) => {
-        const score = c.score.toString().padStart(2, ' ');
         const badge = !c.hasWebsite ? '🔥' : '  ';
-        console.log(`${badge} #${(i + 1).toString().padStart(2, '0')} [${score}/100] ${c.name}`);
-        console.log(`        📍 ${c.city}${c.postalCode ? ` (${c.postalCode})` : ''}${c.email ? ` | ✉️ ${c.email}` : ''}${c.phone ? ` | 📞 ${c.phone}` : ''}`);
-        console.log(`        🏢 ${c.nafLabel || 'N/A'}`);
-        console.log('');
+        console.log(`${badge} #${i + 1} [${c.score}/100] ${c.name} (${c.city})`);
       });
 
-      // Export CSV
       const csv = toCSV(companies);
-      const filename = `leads-${new Date().toISOString().split('T')[0]}.csv`;
-      saveToFile(csv, filename);
-
-      // Output JSON if requested
-      if (args.includes('--json')) {
-        console.log('\n--- JSON OUTPUT ---');
-        console.log(JSON.stringify(companies, null, 2));
-      }
+      saveToFile(csv, `leads-${new Date().toISOString().split('T')[0]}.csv`);
     }
 
   } catch (error) {
-    console.error('\n❌ Scraping failed:', error);
+    console.error('\n❌ Error:', error.message);
     process.exit(1);
   }
 }
