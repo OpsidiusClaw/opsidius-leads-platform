@@ -1,1 +1,19 @@
-{"name": "@opsidius/scrapers", "version": "0.1.0", "private": true, "type": "module", "scripts": {"scrape": "tsx src/scrape.ts", "build": "tsc", "typecheck": "tsc --noEmit"}, "dependencies": {} , "devDependencies": {"@types/node": "^20.11.30", "tsx": "^4.7.1", "typescript": "^5.4.3"}}
+{
+  "name": "@opsidius/scrapers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "scrape": "tsx src/scrape.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "tsx": "^4.7.1",
+    "typescript": "^5.4.3"
+  }
+}

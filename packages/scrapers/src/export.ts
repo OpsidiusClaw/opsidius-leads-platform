@@ -1,4 +1,6 @@
-import { ScrapedCompany } from './pappers.js';
+import { ScrapedCompany } from './pappers-api.js';
+import { writeFileSync, existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
 
 export function toCSV(companies: ScrapedCompany[]): string {
   const headers = [
@@ -35,15 +37,12 @@ export function toCSV(companies: ScrapedCompany[]): string {
 }
 
 export function saveToFile(content: string, filename: string): void {
-  const fs = require('fs');
-  const path = require('path');
-  
-  const outputDir = path.join(process.cwd(), 'output');
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
+  const outputDir = join(process.cwd(), 'output');
+  if (!existsSync(outputDir)) {
+    mkdirSync(outputDir, { recursive: true });
   }
   
-  const filepath = path.join(outputDir, filename);
-  fs.writeFileSync(filepath, content, 'utf-8');
+  const filepath = join(outputDir, filename);
+  writeFileSync(filepath, content, 'utf-8');
   console.log(`💾 Saved to: ${filepath}`);
 }
