@@ -6,9 +6,16 @@
 import { PappersAPIClient } from './pappers-api.js';
 import { toCSV, saveToFile } from './export.js';
 import * as dotenv from 'dotenv';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-// Load .env from project root
-dotenv.config({ path: '../../../.env' });
+// Get current file directory
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Try multiple .env locations
+dotenv.config({ path: resolve(__dirname, '../../../../.env') }); // From packages/scrapers/src/
+dotenv.config({ path: resolve(process.cwd(), '.env') }); // From cwd
+dotenv.config(); // Default
 
 async function main() {
   const args = process.argv.slice(2);
@@ -29,7 +36,8 @@ async function main() {
   const apiKey = process.env.PAPPERS_API_KEY;
   if (!apiKey) {
     console.error('❌ PAPPERS_API_KEY not found in environment');
-    console.error('   Add PAPPERS_API_KEY=your_key to .env file');
+    console.error('   Add PAPPERS_API_KEY=your_key to .env file in project root');
+    console.error(`   Looking in: ${resolve(process.cwd(), '.env')}`);
     process.exit(1);
   }
 
